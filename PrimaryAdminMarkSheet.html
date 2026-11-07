@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mark Sheet - Admin Primary</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
+body{background:#f3f4f6;padding:10px}
+.box{background:white;border-radius:12px;padding:15px}
+h2{background:#2563eb;color:white;text-align:center;padding:12px;border-radius:8px;margin-bottom:15px;font-size:18px}
+.filter-bar{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:15px}
+@media(max-width:700px){.filter-bar{grid-template-columns:1fr}}
+select,button{padding:12px;border-radius:8px;border:1px solid #ccc;width:100%;font-size:14px;margin-bottom:10px}
+.btn-green{background:#16a34a;color:white;font-weight:bold;border:none;cursor:pointer}
+.btn-blue{background:#2563eb;color:white;font-weight:bold;border:none;cursor:pointer}
+.table-wrapper{overflow-x:auto; margin-top:15px; width:100%}
+table{width:100%;border-collapse:collapse;font-size:11px;min-width:700px}
+th{background:#2563eb;color:white;padding:8px;text-align:center}
+td{padding:6px;border:1px solid #ddd;text-align:center}
+input{width:55px;text-align:center;border:1px solid #ccc;border-radius:4px;padding:4px}
+input:focus{border:2px solid #2563eb; outline:none}
+.alert{padding:10px;border-radius:8px;margin:10px 0;display:none;text-align:center}
+.alert.success{background:#d1fae5;color:#065f46}
+.alert.error{background:#fee2e2;color:#991b1b}
+#printHeader{display:none;text-align:center;margin-bottom:15px;padding-bottom:10px;border-bottom:2px solid #000}
+#printHeader h2{margin:0;background:none;color:#000;font-size:20px}
+@media print { body{background:white} .filter-bar,.btn-green,.btn-blue{visibility:hidden;position:absolute;left:-9999px} .box{box-shadow:none;border:none;padding:0} h2.screen-title{display:none} #printHeader{display:block!important} input{border:none;background:transparent} }
+</style>
+</head>
+<body>
+<div class="box">
+<h2 class="screen-title">MARK SHEET - ADMIN PRIMARY</h2>
+<div id="printHeader">
+    <h2>SAUTUL HAQQ PRIMARY SCHOOL</h2>
+    <h3>MARK SHEET</h3>
+    <p><b>Class:</b> <span id="printClass"></span> | <b>Subject:</b> <span id="printSubject"></span> | <b>Session:</b> <span id="printSession"></span> | <b>Term:</b> <span id="printTerm"></span></p>
+</div>
+<div id="alert" class="alert"></div>
+<div class="filter-bar">
+<select id="markClass"><option>Select Class</option></select>
+<select id="markSubject"><option>Select Subject</option></select>
+<select id="markSession"><option>Select Session</option></select>
+<select id="markTerm"><option>Select Term</option></select>
+</div>
+<button class="btn-green" onclick="loadStudents()">Load Students</button>
+<button class="btn-green" onclick="saveAllMarks()">Save All Marks</button>
+<button class="btn-blue" onclick="printSheet()">Print</button>
+<div class="table-wrapper">
+<table>
+<thead><tr><th>S/N</th><th style="text-align:left">STUDENT NAME</th><th>1ST C.A<br>20</th><th>2ND C.A<br>20</th><th>EXAM<br>60</th><th>TOTAL<br>100</th><th>GRADE</th><th>POSITION</th></tr></thead>
+<tbody id="markTbl"><tr><td colspan="8">Select filters and click Load Students</td></tr></tbody>
+</table>
+</div>
+</div>
+<script>
+const db = window.supabase.createClient('https://izhxzibsixhbsucfquyt.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6aHh6aWJzaXhoYnN1Y2ZxdXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzNzk0NTgsImV4cCI6MjEwMDk1NTQ1OH0.vnP0BhywqE0kt1zrxwq7uGeJ76EOowOHXi5CNyMGWUM')
+let currentResults = []; let sessionsList = []; let termsList = [];
+function showAlert(msg,type='success'){const a=document.getElementById('alert');a.className=`alert ${type}`;a.innerText=msg;a.style.display='block';setTimeout(()=>a.style.display='none',2500)}
+function getGrade(total){total=parseInt(total)||0; if(total>=70)return 'A'; if(total>=60)return 'B'; if(total>=50)return 'C'; if(total>=45)return 'D'; if(total>=40)return 'E'; return 'F';}
+function getPosition(rank){ if(!rank) return ''; let s=['th','st','nd','rd']; let v=rank%100; return rank+'<sup>'+(s[(v-20)%10]||s[v]||s[0])+'</sup>'; }
+function showBlank(val){ return (val==0||val==''||val==null)? '' : val }
+
+async function init(){
+    let {data:sess} = await db.from('primary_sessions').select('*');
+    let {data:term} = await db.from('primary_terms').select('*').order('term_name');
+    let {data:classes} = await db.from('primary_classes').select('*').order('class_name');
+    sessionsList = sess||[]; termsList = term||[];
+    markSession.innerHTML = '<option>Select Session</option>' + sessionsList.map(s=>`<option value="${s.id}">${s.session_name}</option>`).join('');
+    markTerm.innerHTML = '<option>Select Term</option>' + termsList.map(t=>`<option value="${t.id}">${t.term_name}</option>`).join('');
+    markClass.innerHTML = '<option>Select Class</option>' + (classes||[]).map(c=>`<option value="${c.id}">${c.class_name}</option>`).join('');
+    markSubject.innerHTML = '<option>Select Subject</option>';
+}
+markClass.onchange = async () => {
+    let cid = markClass.value;
+    if(cid=='Select Class'){ markSubject.innerHTML = '<option>Select Subject</option>'; return; }
+    let {data: classSubjects} = await db.from('primary_class_subjects').select('*').eq('class_id', cid);
+    if(classSubjects && classSubjects.length>0){
+        markSubject.innerHTML = '<option>Select Subject</option>' + classSubjects.map(s=>`<option value="${s.subject_id}">${s.subject_name}</option>`).join('');
+    } else {
+        let {data: allSubjects} = await db.from('primary_subjects').select('*').order('subject_name');
+        markSubject.innerHTML = '<option>Select Subject</option>' + (allSubjects||[]).map(s=>`<option value="${s.id}">${s.subject_name}</option>`).join('');
+    }
+}
+async function loadStudents(){
+    let cid=markClass.value,sid=markSubject.value,ss=markSession.value,tt=markTerm.value;
+    if(cid=='Select Class'||sid=='Select Subject'||ss=='Select Session'||tt=='Select Term') return showAlert('Select all filters','error');
+    showAlert('Loading...');
+    let {data:stu} = await db.from('primary_students').select('*').eq('class_id',cid).order('student_name');
+    let {data:marks} = await db.from('primary_results').select('*').eq('class_id',cid).eq('subject_id',sid).eq('session_id',ss).eq('term_id',tt);
+    if(!stu || stu.length==0){ showAlert('No students found in this class','error'); markTbl.innerHTML='<tr><td colspan="8">No students in this class</td></tr>'; return; }
+    document.getElementById('printClass').innerText = markClass.options[markClass.selectedIndex].text;
+    document.getElementById('printSubject').innerText = markSubject.options[markSubject.selectedIndex].text;
+    document.getElementById('printSession').innerText = sessionsList.find(s=>s.id==ss)?.session_name;
+    document.getElementById('printTerm').innerText = termsList.find(t=>t.id==tt)?.term_name;
+    currentResults = stu.map(s=>{
+        let m = marks?.find(x=>x.student_id==s.id)||{};
+        let ca1 = m.ca1??''; let ca2 = m.ca2??''; let exam = m.exam??'';
+        let total = (parseInt(ca1)||0)+(parseInt(ca2)||0)+(parseInt(exam)||0);
+        if(total==0 && ca1=='' && ca2=='' && exam=='') total='';
+        return {...s, ca1, ca2, exam, total, position:0};
+    });
+    calculatePositions(); renderTable(); showAlert('Loaded '+stu.length+' students');
+}
+function calculatePositions(){
+    let sorted = [...currentResults].filter(s=>s.total!=='').sort((a,b)=>b.total-a.total);
+    let pos=1; sorted.forEach((s,i)=>{ if(i>0&&s.total===sorted[i-1].total){s.position=sorted[i-1].position;}else{s.position=pos;} pos++; });
+    currentResults.filter(s=>s.total==='').forEach(s=>s.position='');
+}
+function renderTable(){
+    let displayList = [...currentResults].sort((a,b)=>{ if(a.total===''&&b.total==='')return 0; if(a.total==='')return 1; if(b.total==='')return -1; return b.total-a.total; });
+    markTbl.innerHTML = displayList.map((s,i)=>`
+    <tr id="row_${s.id}"><td>${i+1}</td><td style="text-align:left">${s.student_name}</td>
+    <td><input type="number" id="ca1_${s.id}" value="${showBlank(s.ca1)}" max="20" min="0" oninput="updateMark('${s.id}')"></td>
+    <td><input type="number" id="ca2_${s.id}" value="${showBlank(s.ca2)}" max="20" min="0" oninput="updateMark('${s.id}')"></td>
+    <td><input type="number" id="exam_${s.id}" value="${showBlank(s.exam)}" max="60" min="0" oninput="updateMark('${s.id}')"></td>
+    <td id="total_${s.id}">${showBlank(s.total)}</td><td id="grade_${s.id}">${s.total!==''?getGrade(s.total):''}</td><td id="pos_${s.id}">${getPosition(s.position)}</td></tr>`).join('');
+}
+function updateMark(id){
+    let ca1=+document.getElementById(`ca1_${id}`).value||0; let ca2=+document.getElementById(`ca2_${id}`).value||0; let exam=+document.getElementById(`exam_${id}`).value||0;
+    if(ca1>20)ca1=20; if(ca2>20)ca2=20; if(exam>60)exam=60;
+    let student = currentResults.find(s=>s.id==id);
+    student.ca1=ca1||''; student.ca2=ca2||''; student.exam=exam||''; student.total=(ca1+ca2+exam)||''; if(student.total==0 && ca1==0 && ca2==0 && exam==0) student.total='';
+    document.getElementById(`total_${id}`).innerText=showBlank(student.total);
+    document.getElementById(`grade_${id}`).innerText=student.total!==''?getGrade(student.total):'';
+    calculatePositions(); currentResults.forEach(s=>{ let pc=document.getElementById(`pos_${s.id}`); if(pc) pc.innerHTML=getPosition(s.position); });
+}
+async function saveAllMarks(){
+    let cid=markClass.value,sid=markSubject.value,ss=markSession.value,tt=markTerm.value;
+    if(cid=='Select Class'||sid=='Select Subject'||ss=='Select Session'||tt=='Select Term') return showAlert('Select all filters','error');
+    let class_name = markClass.options[markClass.selectedIndex].text;
+    let session_name = sessionsList.find(s=>s.id==ss)?.session_name;
+    let term_name = termsList.find(t=>t.id==tt)?.term_name;
+    let subject_name = markSubject.options[markSubject.selectedIndex].text;
+    showAlert('Saving...');
+    let dataToSave = currentResults.map(s => ({
+        student_id:s.id, student_name:s.student_name, class_id:cid, class_name:class_name,
+        subject_id:sid, subject_name:subject_name, session_id:ss, session_name:session_name,
+        term_id:tt, term_name:term_name, ca1:s.ca1||null, ca2:s.ca2||null, exam:s.exam||null,
+        grade: s.total!==''? getGrade(s.total):null, position: s.position||null, status: 'Approved'
+    }));
+    let {error} = await db.from('primary_results').upsert(dataToSave, {onConflict: 'student_id,class_id,subject_id,session_id,term_id'});
+    if(error) showAlert('Error: '+error.message,'error'); else showAlert('Marks Saved Successfully');
+}
+function printSheet(){ document.getElementById('printHeader').style.display='block'; window.print(); setTimeout(()=>document.getElementById('printHeader').style.display='none',500); }
+init();
+</script>
+</body>
+</html>

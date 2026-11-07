@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Class Register - Primary</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap');
+:root{
+  --wine:#5e1a2e;--wine-2:#7b2640;--wine-hi:#7e2a44;--wine-lo:#3d0f1d;
+  --sand:#eae2d8;--hi:#fbf7f1;--lo:#c8bcae;
+  --ink:#2a1a1f;--muted:#7a6a68;
+  --raise:7px 7px 15px var(--lo),-7px -7px 15px var(--hi);
+  --raise-s:4px 4px 9px var(--lo),-4px -4px 9px var(--hi);
+  --press:inset 4px 4px 9px var(--lo),inset -4px -4px 9px var(--hi);
+}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Manrope','Segoe UI',Arial,sans-serif}
+html,body{height:auto!important;overflow:visible!important}
+body{background:var(--sand);color:var(--ink);padding:14px}
+.card{background:var(--sand);border-radius:22px;padding:22px;box-shadow:var(--raise)}
+.header{display:flex;align-items:center;justify-content:center;margin-bottom:22px}
+.header h2{background:var(--wine);color:#fff;font-family:'Lora',Georgia,serif;font-size:18px;letter-spacing:.08em;padding:12px 26px;border-radius:16px;box-shadow:inset 4px 4px 8px var(--wine-lo),inset -4px -4px 8px var(--wine-hi)}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+.info-item{background:var(--sand);padding:16px 18px;border-radius:18px;box-shadow:var(--raise-s);border-left:5px solid var(--wine)}
+.info-item label{display:block;font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.info-item p{font-size:18px;color:var(--wine);font-weight:800;margin-top:6px;word-break:break-word}
+.empty{text-align:center;padding:20px;color:var(--muted);font-weight:600;border-radius:16px;box-shadow:var(--press)}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head><body>
+<div class="card">
+    <div class="header"><h2>🏫 REGISTER</h2></div>
+    <div id="classInfo">Loading...</div>
+</div>
+<script>
+const db = window.supabase.createClient('https://izhxzibsixhbsucfquyt.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6aHh6aWJzaXhoYnN1Y2ZxdXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzNzk0NTgsImV4cCI6MjEwMDk1NTQ1OH0.vnP0BhywqE0kt1zrxwq7uGeJ76EOowOHXi5CNyMGWUM')
+const teacherId = localStorage.getItem('teacherId');
+const teacherName = localStorage.getItem('teacherName');
+const teacherCode = localStorage.getItem('teacherCode');
+
+async function load(){
+    if(!teacherId && !teacherCode) return document.getElementById('classInfo').innerText = 'Please login first';
+
+    let {data: myClass} = await db.from('primary_class_registers').select('*').eq('teacher_id', teacherId).maybeSingle();
+
+    if(!myClass && teacherCode){
+        let {data: byCode} = await db.from('primary_class_registers').select('*').eq('teacher_code', teacherCode).maybeSingle();
+        myClass = byCode;
+    }
+
+    if(!myClass) return document.getElementById('classInfo').innerHTML = '<p class="empty">No class assigned to you as Class Teacher</p>';
+    
+    let {count: totalStudents} = await db.from('primary_students').select('*', {count:'exact', head:true}).eq('class_id', myClass.class_id);
+    
+    document.getElementById('classInfo').innerHTML = `
+        <div class="info-grid">
+            <div class="info-item"><label>Class Teacher</label><p>${teacherName || myClass.teacher_name}</p></div>
+            <div class="info-item"><label>Class</label><p>${myClass.class_name}</p></div>
+            <div class="info-item"><label>Total Students</label><p>${totalStudents || 0}</p></div>
+            <div class="info-item"><label>Role</label><p>Form Master</p></div>
+        </div>
+    `;
+    if(window.parent) window.parent.postMessage('resize','*');
+}
+load();
+</script></body></html>

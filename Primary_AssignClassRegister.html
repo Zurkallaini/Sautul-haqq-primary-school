@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Assign Class Register - Primary</title>
+<style>
+html, body, .card { height:auto !important; overflow:visible !important; }
+body{background:#eae2d8;padding:15px;font-family:Arial}
+.card{background:white;border-radius:15px;padding:20px;box-shadow:0 4px 12px rgba(61,15,29,0.12)}
+h2{color:#5e1a2e;margin-bottom:15px}
+h3{color:#5e1a2e}
+input,select{width:100%;padding:12px;margin:8px 0;border:1px solid #d9cdbd;border-radius:8px;background:#fbf8f3}
+input:focus,select:focus{outline:none;border-color:#5e1a2e;background:#fff}
+.btn{background:#16a34a;color:white;padding:12px;border:none;border-radius:8px;width:100%;font-weight:bold;cursor:pointer}
+.btn:hover{opacity:0.9}
+.table-wrapper{ overflow-x: auto; margin-top:15px; border-radius:10px; overflow-y:visible; max-height:none }
+table{width:100%;border-collapse:collapse; min-width: 500px; }
+th{background:#5e1a2e;color:white;padding:10px;text-align:left; white-space: nowrap;}
+td{padding:10px;border-bottom:1px solid #eee; white-space: nowrap;}
+.btn-del{background:#dc2626;padding:6px 12px;border:none;border-radius:5px;color:white;cursor:pointer; font-weight:600}
+.btn-del:hover{background:#b91c1c}
+#msg{padding:10px;border-radius:8px;margin:10px 0;display:none;text-align:center;font-weight:bold}
+.msg-success{background:#d1fae5;color:#065f46}
+.msg-error{background:#fee2e2;color:#991b1b}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="card">
+    <h2>TEACHER REGISTER </h2>
+    <div id="msg"></div>
+    <label>Select Class</label>
+    <select id="rClass"></select>
+    <label>Select Teacher</label>
+    <select id="rTeacher"></select>
+    <button class="btn" onclick="saveRegister()">Save Class Register</button>
+
+    <h3 style="margin-top:20px">Current Class Registers</h3>
+    <div class="table-wrapper">
+        <table>
+            <thead><tr><th>S/N</th><th>CLASS</th><th>REGISTER TEACHER</th><th>ACTION</th></tr></thead>
+            <tbody id="registerTable"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+const db = window.supabase.createClient('https://izhxzibsixhbsucfquyt.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6aHh6aWJzaXhoYnN1Y2ZxdXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzNzk0NTgsImV4cCI6MjEwMDk1NTQ1OH0.vnP0BhywqE0kt1zrxwq7uGeJ76EOowOHXi5CNyMGWUM')
+let classesData=[], teachersData=[];
+
+async function load(){
+    classesData = (await db.from('primary_classes').select('*').order('class_name')).data||[];
+    teachersData = (await db.from('primary_teachers').select('*').order('teacher_name')).data||[];
+    document.getElementById('rClass').innerHTML = '<option value="">Select Class</option>' + classesData.map(c=>`<option value="${c.id}">${c.class_name}</option>`).join('');
+    document.getElementById('rTeacher').innerHTML = '<option value="">Select Teacher</option>' + teachersData.map(t=>`<option value="${t.id}">${t.teacher_name} (${t.teacher_code})</option>`).join('');
+    loadTable();
+    if(window.parent) window.parent.postMessage('resize','*');
+}
+async function loadTable(){
+    let {data} = await db.from('primary_class_registers').select('*').order('id', {ascending: false});
+    document.getElementById('registerTable').innerHTML = (data||[]).map((r,i)=>`
+        <tr>
+            <td>${i+1}</td>
+            <td>${r.class_name}</td>
+            <td>${r.teacher_name}</td>
+            <td><button class="btn-del" onclick="del(${r.id})">Delete</button></td>
+        </tr>
+    `).join('') || '<tr><td colspan="4" style="text-align:center">No register assigned yet</td></tr>';
+    if(window.parent) window.parent.postMessage('resize','*');
+}
+async function saveRegister(){
+    const class_id = document.getElementById('rClass').value;
+    const teacher_id = document.getElementById('rTeacher').value;
+    if(!class_id||!teacher_id) return showMsg('Select both class and teacher','error');
+    
+    const class_name = classesData.find(c=>c.id==class_id)?.class_name;
+    const teacher = teachersData.find(t=>t.id==teacher_id);
+    const teacher_name = teacher?.teacher_name;
+    const teacher_code = teacher?.teacher_code;
+    
+    let {data:check} = await db.from('primary_class_registers').select('id').eq('class_id',class_id).maybeSingle();
+    if(check) return showMsg('This class already has a register teacher','error');
+
+    const {error} = await db.from('primary_class_registers').insert([{class_id,class_name,teacher_id,teacher_name,teacher_code}]);
+    if(error) return showMsg(error.message,'error');
+    showMsg('Assigned Successfully','success'); 
+    document.getElementById('rClass').value = '';
+    document.getElementById('rTeacher').value = '';
+    loadTable();
+}
+async function del(id){ 
+    if(confirm('Delete this register assignment?')){
+        await db.from('primary_class_registers').delete().eq('id',id); 
+        showMsg('Deleted Successfully','success');
+        loadTable(); 
+    }
+}
+function showMsg(t,ty){ 
+    const m=document.getElementById('msg'); 
+    m.innerText=t; 
+    m.className=ty=='success'?'msg-success':'msg-error'; 
+    m.style.display='block'; 
+    setTimeout(()=>m.style.display='none',2500);
+}
+load();
+</script>
+</body>
+</html>

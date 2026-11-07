@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Class Register Subject - Primary</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap');
+:root{
+  --wine:#5e1a2e;--wine-2:#7b2640;--wine-hi:#7e2a44;--wine-lo:#3d0f1d;
+  --sand:#eae2d8;--hi:#fbf7f1;--lo:#c8bcae;
+  --ink:#2a1a1f;--muted:#7a6a68;
+  --raise:7px 7px 15px var(--lo),-7px -7px 15px var(--hi);
+  --raise-s:4px 4px 9px var(--lo),-4px -4px 9px var(--hi);
+  --press:inset 4px 4px 9px var(--lo),inset -4px -4px 9px var(--hi);
+}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Manrope','Segoe UI',Arial,sans-serif}
+html,body{height:auto!important;overflow:visible!important}
+body{background:var(--sand);color:var(--ink);padding:14px}
+.card{background:var(--sand);border-radius:22px;padding:22px;box-shadow:var(--raise)}
+.header{display:flex;justify-content:center;margin-bottom:18px}
+.header h2{background:var(--wine);color:#fff;font-family:'Lora',Georgia,serif;font-size:18px;letter-spacing:.08em;padding:12px 26px;border-radius:16px;box-shadow:inset 4px 4px 8px var(--wine-lo),inset -4px -4px 8px var(--wine-hi);white-space:pre-wrap}
+#className{text-align:center;margin-bottom:18px;color:var(--muted);font-weight:600}
+.class-badge{background:var(--sand);color:var(--wine);padding:9px 20px;border-radius:20px;font-weight:800;display:inline-block;box-shadow:var(--raise-s)}
+.table-wrapper{overflow-x:auto;border-radius:16px;box-shadow:var(--press);padding:6px}
+table{width:100%;border-collapse:separate;border-spacing:0;min-width:320px}
+thead{color:#fff}
+th{background:var(--wine);padding:13px 12px;text-align:left;font-weight:700;font-size:12.5px;letter-spacing:.05em}
+th:first-child{border-radius:12px 0 0 12px} th:last-child{border-radius:0 12px 12px 0}
+td{padding:14px 12px;border-bottom:1px solid rgba(122,106,104,.22);font-weight:600;font-size:14px}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:rgba(94,26,46,.05)}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head><body>
+<div class="card">
+    <div class="header"><h2>📚 SUBJECT'S LIST</h2></div>
+    <div id="className">Loading...</div>
+    <div class="table-wrapper">
+    <table><thead><tr><th style="width:60px">S/N</th><th>SUBJECT</th></tr></thead><tbody id="subjectList"><tr><td colspan="2" style="text-align:center">Loading...</td></tr></tbody></table>
+    </div>
+</div>
+<script>
+const db = window.supabase.createClient('https://izhxzibsixhbsucfquyt.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6aHh6aWJzaXhoYnN1Y2ZxdXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzNzk0NTgsImV4cCI6MjEwMDk1NTQ1OH0.vnP0BhywqE0kt1zrxwq7uGeJ76EOowOHXi5CNyMGWUM')
+const teacherId = localStorage.getItem('teacherId');
+const teacherCode = localStorage.getItem('teacherCode');
+
+async function load(){
+    if(!teacherId && !teacherCode) return document.getElementById('className').innerText = 'Please login first';
+
+    let {data: myClass} = await db.from('primary_class_registers').select('*').eq('teacher_id', teacherId).maybeSingle();
+    if(!myClass && teacherCode){
+        let {data: byCode} = await db.from('primary_class_registers').select('*').eq('teacher_code', teacherCode).maybeSingle();
+        myClass = byCode;
+    }
+    if(!myClass) return document.getElementById('className').innerText = 'No class assigned as Class Teacher';
+
+    document.getElementById('className').innerHTML = `<span class="class-badge">Class: ${myClass.class_name}</span>`;
+    
+    // Get subjects for this class from primary_class_subjects
+    let {data: classSubjects} = await db.from('primary_class_subjects').select('*').eq('class_id', myClass.class_id).order('subject_name');
+
+    // Fallback: if empty, try from teacher_subjects distinct
+    if(!classSubjects || classSubjects.length==0){
+        let {data: assignments} = await db.from('primary_teacher_subjects').select('*').eq('class_id', myClass.class_id);
+        if(assignments && assignments.length>0){
+            let unique = [...new Map(assignments.map(i=>[i.subject_id, {subject_id: i.subject_id, subject_name: i.subject_name || i.primary_subjects?.subject_name}])).values()];
+            // fetch names if needed
+            let {data: allSubj} = await db.from('primary_subjects').select('*');
+            classSubjects = unique.map(u=>({
+                subject_id: u.subject_id,
+                subject_name: u.subject_name || allSubj?.find(s=>s.id==u.subject_id)?.subject_name || 'N/A'
+            }));
+        }
+    }
+
+    if(!classSubjects || classSubjects.length==0){
+        document.getElementById('subjectList').innerHTML = '<tr><td colspan="2" style="text-align:center">No subjects assigned to this class yet</td></tr>';
+    } else {
+        document.getElementById('subjectList').innerHTML = classSubjects.map((a,i)=>`
+            <tr><td>${i+1}</td><td>${a.subject_name}</td></tr>
+        `.trim()).join('');
+    }
+    if(window.parent) window.parent.postMessage('resize','*');
+}
+load();
+</script></body></html>

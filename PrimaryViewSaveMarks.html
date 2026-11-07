@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIEW SAVED MARKS - TEACHER PRIMARY</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
+body{background:#eae2d8;padding:10px}
+.box{background:#f3ede4;border-radius:12px;padding:15px}
+h2{background:#2563eb;color:white;text-align:center;padding:12px;border-radius:8px;margin-bottom:15px;font-size:18px}
+.filter-bar{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:15px}
+@media(max-width:700px){.filter-bar{grid-template-columns:1fr}}
+select,button{padding:12px;border-radius:8px;border:1px solid #ccc;width:100%;font-size:14px;margin-bottom:10px}
+.btn-green{background:#16a34a;color:white;font-weight:bold;border:none;cursor:pointer}
+.btn-blue{background:#2563eb;color:white;font-weight:bold;border:none;cursor:pointer}
+.table-wrapper{overflow-x:auto;margin-top:15px}
+table{width:100%;border-collapse:collapse;font-size:11px;min-width:700px}
+th{background:#2563eb;color:white;padding:8px;text-align:center}
+td{padding:6px;border:1px solid #ddd;text-align:center}
+.alert{padding:10px;border-radius:8px;margin:10px 0;display:none;text-align:center}
+.alert.success{background:#d1fae5;color:#065f46}
+.alert.error{background:#fee2e2;color:#991b1b}
+#printHeader{display:none;text-align:center;margin-bottom:15px;padding-bottom:10px;border-bottom:2px solid #000}
+@media print { .filter-bar,.btn-green,.btn-blue{display:none} #printHeader{display:block!important} }
+</style>
+</head>
+<body>
+<div class="box">
+<h2>SAVED MARKS - PRIMARY</h2>
+<div id="printHeader">
+    <h2>SAUTUL HAQQ PRIMARY SCHOOL</h2>
+    <p><b>Class:</b> <span id="printClass"></span> | <b>Subject:</b> <span id="printSubject"></span> | <b>Session:</b> <span id="printSession"></span> | <b>Term:</b> <span id="printTerm"></span> | <b>Teacher:</b> <span id="printTeacher"></span></p>
+</div>
+<div id="alert" class="alert"></div>
+<div class="filter-bar">
+<select id="vsClass"><option value="">Select Class</option></select>
+<select id="vsSubject"><option value="">Select Subject</option></select>
+<select id="vsSession"><option value="">Select Session</option></select>
+<select id="vsTerm"><option value="">Select Term</option></select>
+</div>
+<button class="btn-green" onclick="viewMarks()">Load Students</button>
+<button class="btn-blue" onclick="printSheet()">Print</button>
+<div class="table-wrapper">
+<table>
+<thead><tr><th>S/N</th><th style="text-align:left">STUDENT NAME</th><th>1ST C.A<br>20</th><th>2ND C.A<br>20</th><th>EXAM<br>60</th><th>TOTAL<br>100</th><th>GRADE</th><th>POSITION</th></tr></thead>
+<tbody id="viewBody"><tr><td colspan="8">Select filters</td></tr></tbody>
+</table>
+</div>
+</div>
+<script>
+const db = window.supabase.createClient('https://izhxzibsixhbsucfquyt.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6aHh6aWJzaXhoYnN1Y2ZxdXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzNzk0NTgsImV4cCI6MjEwMDk1NTQ1OH0.vnP0BhywqE0kt1zrxwq7uGeJ76EOowOHXi5CNyMGWUM')
+const tCode = localStorage.getItem('teacherCode');
+const tName = localStorage.getItem('teacherName');
+let sessionsList=[]; let termsList=[]; let currentResults=[];
+
+function showAlert(m,t){let a=document.getElementById('alert');a.className=`alert ${t}`;a.innerText=m;a.style.display='block';setTimeout(()=>a.style.display='none',3000)}
+function getGrade(t){t=parseInt(t)||0; if(t>=70)return 'A'; if(t>=60)return 'B'; if(t>=50)return 'C'; if(t>=45)return 'D'; if(t>=40)return 'E'; return 'F';}
+function showBlank(v){return(v==0||v==''||v==null)?'':v}
+function getPos(r){if(!r)return''; let s=['th','st','nd','rd']; let v=r%100; return r+'<sup>'+(s[(v-20)%10]||s[v]||s[0])+'</sup>';}
+
+async function init(){
+    if(!tCode){ showAlert('Login first','error'); return; }
+    document.getElementById('printTeacher').innerText=tName||'';
+    let {data:sess} = await db.from('primary_sessions').select('*');
+    let {data:term} = await db.from('primary_terms').select('*');
+    let {data:assigned} = await db.from('primary_teacher_subjects').select('*, primary_classes!inner(id,class_name), primary_subjects!inner(id,subject_name)').eq('teacher_code', tCode);
+    sessionsList=sess||[]; termsList=term||[];
+    vsSession.innerHTML='<option value="">Select Session</option>'+sessionsList.map(s=>`<option value="${s.id}">${s.session_name}</option>`).join('');
+    vsTerm.innerHTML='<option value="">Select Term</option>'+termsList.map(t=>`<option value="${t.id}">${t.term_name}</option>`).join('');
+    if(!assigned||assigned.length==0){
+        if(tCode==='SUPERADMIN'){
+            let {data:classes}=await db.from('primary_classes').select('*').order('class_name');
+            let {data:subjs}=await db.from('primary_subjects').select('*').order('subject_name');
+            vsClass.innerHTML='<option value="">Select Class</option>'+(classes||[]).map(c=>`<option value="${c.id}">${c.class_name}</option>`).join('');
+            vsSubject.innerHTML='<option value="">Select Subject</option>'+(subjs||[]).map(s=>`<option value="${s.id}">${s.subject_name}</option>`).join('');
+        }else{ showAlert('No class assigned by Admin','error'); return; }
+    }else{
+        let myClasses=[...new Map(assigned.map(i=>[i.class_id,i.primary_classes])).values()];
+        vsClass.innerHTML='<option value="">Select Class</option>'+myClasses.map(c=>`<option value="${c.id}">${c.class_name}</option>`).join('');
+    }
+}
+vsClass.onchange=async()=>{
+    let cid=vsClass.value;
+    if(tCode==='SUPERADMIN'){
+        let {data:subjs}=await db.from('primary_subjects').select('*').order('subject_name');
+        vsSubject.innerHTML='<option value="">Select Subject</option>'+(subjs||[]).map(s=>`<option value="${s.id}">${s.subject_name}</option>`).join('');
+    }else{
+        let {data:assigned}=await db.from('primary_teacher_subjects').select('*, primary_subjects!inner(id,subject_name)').eq('teacher_code',tCode).eq('class_id',cid);
+        vsSubject.innerHTML='<option value="">Select Subject</option>'+(assigned||[]).map(s=>`<option value="${s.primary_subjects.id}">${s.primary_subjects.subject_name}</option>`).join('');
+    }
+}
+function calcPos(){let sorted=[...currentResults].filter(s=>s.total!=='').sort((a,b)=>b.total-a.total); let p=1; sorted.forEach((s,i)=>{if(i>0&&s.total===sorted[i-1].total){s.position=sorted[i-1].position;}else{s.position=p;} p++;}); currentResults.filter(s=>s.total==='').forEach(s=>s.position='');}
+async function viewMarks(){
+    let cls=vsClass.value, sub=vsSubject.value, sess=vsSession.value, term=vsTerm.value;
+    if(!cls||!sub||!sess||!term) return showAlert('Select all filters','error');
+    document.getElementById('printClass').innerText=vsClass.options[vsClass.selectedIndex].text;
+    document.getElementById('printSubject').innerText=vsSubject.options[vsSubject.selectedIndex].text;
+    document.getElementById('printSession').innerText=sessionsList.find(s=>s.id==sess)?.session_name;
+    document.getElementById('printTerm').innerText=termsList.find(t=>t.id==term)?.term_name;
+    let {data:results,error}=await db.from('primary_results').select('*').eq('class_id',cls).eq('subject_id',sub).eq('session_id',sess).eq('term_id',term);
+    if(error) return showAlert(error.message,'error');
+    if(!results||results.length==0){ viewBody.innerHTML='<tr><td colspan="8">No results found</td></tr>'; return; }
+    currentResults=results.map(r=>{let tot=(+r.ca1||0)+(+r.ca2||0)+(+r.exam||0); if(tot==0&&!r.ca1&&!r.ca2&&!r.exam) tot=''; return {...r,total:tot};});
+    calcPos();
+    let display=[...currentResults].sort((a,b)=>{if(a.total===''&&b.total==='')return 0; if(a.total==='')return 1; if(b.total==='')return -1; return b.total-a.total;});
+    viewBody.innerHTML=display.map((r,i)=>`<tr><td>${i+1}</td><td style="text-align:left">${r.student_name}</td><td>${showBlank(r.ca1)}</td><td>${showBlank(r.ca2)}</td><td>${showBlank(r.exam)}</td><td>${showBlank(r.total)}</td><td>${r.total!==''?getGrade(r.total):''}</td><td>${r.total!==''?getPos(r.position):''}</td></tr>`).join('');
+    showAlert('Loaded '+results.length+' students','success');
+}
+function printSheet(){document.getElementById('printHeader').style.display='block'; window.print(); setTimeout(()=>document.getElementById('printHeader').style.display='none',500);}
+init();
+</script>
+</body>
+</html>
