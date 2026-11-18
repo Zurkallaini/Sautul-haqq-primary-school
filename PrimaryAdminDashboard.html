@@ -120,6 +120,7 @@ iframe.admin-frame{width:100%;min-height:600px;border:none;border-radius:8px;dis
 <div class="card"><i class="fa-solid fa-user-graduate"></i><div><h3>Total Students</h3><div class="count" id="totalStudents">0</div></div></div>
 <div class="card"><i class="fa-solid fa-chalkboard-user"></i><div><h3>Total Teachers</h3><div class="count" id="totalTeachers">0</div></div></div>
 <div class="card"><i class="fa-solid fa-school"></i><div><h3>Total Classes</h3><div class="count" id="totalClasses">0</div></div></div>
+  <div class="card"><i class="fa-solid fa-book"></i><div><h3>Total Subjects</h3><div class="count" id="totalSubjects">0</div></div></div>
 <div class="card"><i class="fa-solid fa-user-shield"></i><div><h3>Admins</h3><div class="count" id="totalAdmins">0</div></div></div>
 </div>
 <div class="box">
@@ -644,6 +645,9 @@ async function loadData(){
       classesData = classes || []; subjectsData = subjects || []; teachersData = teachers || []; studentsData = students || []; usersData = users || []; sessionsData = sessions || []; termsData = terms || [];
       document.getElementById('totalStudents').innerText = studentsData.length;
       document.getElementById('totalTeachers').innerText = teachersData.length;
+      const { data: subjData } = await db.from("class_subjects").select("subject_name");
+const totalSubjects = new Set((subjData || []).map(s => (s.subject_name || "").trim().toLowerCase())).size;
+document.getElementById("totalSubjects").textContent = totalSubjects;
       document.getElementById('totalClasses').innerText = classesData.length;
       document.getElementById('totalAdmins').innerText = usersData.filter(u => u.role === 'Admin').length;
       let userHtml = usersData.map((u,i) => {
