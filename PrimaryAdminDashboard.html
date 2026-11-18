@@ -645,7 +645,7 @@ async function loadData(){
       classesData = classes || []; subjectsData = subjects || []; teachersData = teachers || []; studentsData = students || []; usersData = users || []; sessionsData = sessions || []; termsData = terms || [];
       document.getElementById('totalStudents').innerText = studentsData.length;
       document.getElementById('totalTeachers').innerText = teachersData.length;
-      const { data: subjData } = await db.from("class_subjects").select("subject_name");
+      const { data: subjData } = await db.from("primary_subjects").select("subject_name");
 const totalSubjects = new Set((subjData || []).map(s => (s.subject_name || "").trim().toLowerCase())).size;
 document.getElementById("totalSubjects").textContent = totalSubjects;
       document.getElementById('totalClasses').innerText = classesData.length;
